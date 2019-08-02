@@ -1,2 +1,2 @@
 # openvox-sms-receiver
-OpenVox VoxStack GSM-gateway sms receiver+unsplitter
+OpenVox VoxStack GSM-gateway SMS receiver+unsplitter
