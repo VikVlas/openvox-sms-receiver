@@ -10,6 +10,16 @@ include_once("/www/cgi-bin/inc/smsoutboxdb.php");
 
 $redis_client = new Predis\Client();
 
+// ================================== avgreen 
+declare(ticks=1); // PHP internal, make signal handling work
+$running = true;
+function signalHandler($signo) {
+    global $running;
+    $running = false;
+    printf("Warning: interrupt received, killing server…%s", PHP_EOL);
+}
+pcntl_signal(SIGINT, 'signalHandler');
+
 $pidKill = shell_exec('ps x | grep -E "(/bin/)?php.*/sms_recv" | grep -v "grep" | cut -c1-5');
 if(!empty($pidKill)) {
 	echo "Kill original SMS receive process $pidKill\n";
@@ -26,8 +36,9 @@ if(($PrevPid !== FALSE) && posix_kill(rtrim($PrevPid),0)) {
 echo "Starting SMS recive Server...".PHP_EOL;
 file_put_contents($PathToPidFile, getmypid());
 date_default_timezone_set("UTC");
+// ================================== avgreen (and)
 
-while(true) {
+while($running) {
 	$blpop_sms_out = $redis_client->blpop("app.asterisk.smssend.list", 5);
 	$blpop_str=$redis_client->blpop("app.asterisk.smsreceive.list",5);
 
