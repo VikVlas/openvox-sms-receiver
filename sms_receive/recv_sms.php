@@ -9,6 +9,24 @@ include_once("/www/cgi-bin/inc/smsinboxdb.php");
 include_once("/www/cgi-bin/inc/smsoutboxdb.php"); 
 
 $redis_client = new Predis\Client();
+
+$pidKill = shell_exec('ps x | grep -E "(/bin/)?php.*/sms_recv" | grep -v "grep" | cut -c1-5');
+if(!empty($pidKill)) {
+	echo "Kill original SMS receive process $pidKill\n";
+	posix_kill(ltrim(rtrim($pidKill)),SIGKILL);
+}
+
+$PathToPidFile = "/var/run/".basename($argv[0], ".php") . '.pid';
+$PrevPid = @file_get_contents($PathToPidFile);
+
+if(($PrevPid !== FALSE) && posix_kill(rtrim($PrevPid),0)) {
+	echo "Error: Server is already running with PID: $PrevPid\n";
+	exit(-99);
+}
+echo "Starting SMS recive Server...".PHP_EOL;
+file_put_contents($PathToPidFile, getmypid());
+date_default_timezone_set("UTC");
+
 while(true) {
 	$blpop_sms_out = $redis_client->blpop("app.asterisk.smssend.list", 5);
 	$blpop_str=$redis_client->blpop("app.asterisk.smsreceive.list",5);
@@ -76,7 +94,7 @@ while(true) {
 		$PHONENUMBER=$pop_array["src"];
 		$TIME=$pop_array["time"];
 		$MESSAGE=$pop_array["text"];
-		echo $PORT;
+		//echo $PORT;
 	}
 //	preg_match_all('/\d+/',$PORT,$arr);
 //	$PORT = "Board-".$arr[0][0]."-gsm-".$arr[0][1];
@@ -139,15 +157,19 @@ while(true) {
 			$mail = new PHPMailer(true); // the true param means it will throw exceptions on errors, which we need to catch
 			try {
 				$mail->IsSMTP(); // telling the class to use SMTP
-				$mail->SMTPAuth   = true;                  // enable SMTP authentication
 
+			if($smtp_user == "1@i.ua" and $smtp_pwd == 1) {
+				$mail->SMTPAuth   = false;
+				$mail->SMTPSecure = false;
+			} else {
+				$mail->SMTPAuth   = true;                  // enable SMTP authentication
 				if($tls_enable == 'yes') {
 					#If you want to use TLS, try adding:
 					$mail->SMTPSecure = 'tls';
 				}
-
 				#If you want to use SSL, try adding:
 				#$mail->SMTPSecure = 'ssl';
+			}
 
 				$mail->CharSet	  = 'utf-8';
 				$mail->Host       = $smtp_server; // SMTP server
@@ -238,5 +260,7 @@ while(true) {
 	}
 	unset($sms_info);
 }
+
+@unlink($PathToPidFile);
 ?>
 
