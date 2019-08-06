@@ -7,10 +7,48 @@ include_once("/www/cgi-bin/inc/function.inc");
 require_once("/www/cgi-bin/inc/redis.inc");
 include_once("/www/cgi-bin/inc/smsinboxdb.php"); 
 include_once("/www/cgi-bin/inc/smsoutboxdb.php"); 
+require_once 'telegram.php';
+require_once 'unicode_emoj.php';
 
 $redis_client = new Predis\Client();
 
 // ================================== avgreen 
+$telegramToken = "";
+$telegramChatId = "";
+$messages = array();
+$SIM_pic[1] = "1️⃣";
+$SIM_pic[2] = "2️⃣";
+$SIM_pic[3] = "3️⃣";
+$SIM_pic[4] = "4️⃣";
+
+function unsplitSMS(&$messages, $port = 0, $phonenumber = "", $date = "", $text = "") {
+	global $SIM_pic;
+	global $telegramToken, $telegramChatId;
+	$SMStimeoutWindow = 20;
+	if($port)
+		array_push($messages, array('time' => time(), 'port' => $port, 'phonenumber' => $phonenumber, 'date' => $date, 'text' => $text));
+	
+	if(!empty($messages)) {
+		if((time()-$messages[0]['time']) > $SMStimeoutWindow) {
+			$msg = array_shift($messages);
+			while(!empty($messages) && ($messages[0]['port'] == $msg['port']) && ($messages[0]['phonenumber'] == $msg['phonenumber']) && ($messages[0]['time']-$msg['time']) <= $SMStimeoutWindow) {
+				$msg['text'] .= $messages[0]['text'];
+				$msg['parts'] = array_key_exists('parts', $msg)?$msg['parts']+1:2;
+				array_shift($messages);
+			}
+			if (pcntl_fork() == 0) { 
+				$countParts = array_key_exists('parts', $msg)?" (".$msg['parts'].")":"";
+				$PortName = get_gsm_name_by_channel($msg['port']);
+				//print_r($msg);
+				message_to_telegram(UNICODE_EMOJ_ENVELOPE_WITH_ARROW." Входящее СМС$countParts\n".UNICODE_EMOJ_TELEPHONE." От: ".$msg['phonenumber']."\n".UNICODE_EMOJ_STOPWATCH." Дата время: ".$msg['date']."\n".$SIM_pic[$msg['port']]."$PortName\n📝 ".$msg['text']."\n#SMS", $telegramChatId, $telegramToken);
+				//message_to_telegram(UNICODE_EMOJ_ENVELOPE_WITH_ARROW." Входящее СМС$countParts\n".UNICODE_EMOJ_TELEPHONE." От: ".$msg['phonenumber']."\n".UNICODE_EMOJ_STOPWATCH." Дата время: ".$msg['date']."\n".$SIM_pic[$msg['port']]."$PortName\n📝 ".$msg['text']."\n#SMS");
+				exit(0);
+			}
+		}
+	}
+}
+
+
 declare(ticks=1); // PHP internal, make signal handling work
 $running = true;
 function signalHandler($signo) {
@@ -33,14 +71,14 @@ if(($PrevPid !== FALSE) && posix_kill(rtrim($PrevPid),0)) {
 	echo "Error: Server is already running with PID: $PrevPid\n";
 	exit(-99);
 }
-echo "Starting SMS recive Server...".PHP_EOL;
+echo "Starting SMS receive Server...".PHP_EOL;
 file_put_contents($PathToPidFile, getmypid());
 date_default_timezone_set("UTC");
 // ================================== avgreen (and)
 
 while($running) {
-	$blpop_sms_out = $redis_client->blpop("app.asterisk.smssend.list", 5);
-	$blpop_str=$redis_client->blpop("app.asterisk.smsreceive.list",5);
+	$blpop_sms_out = $redis_client->blpop("app.asterisk.smssend.list", 1);
+	$blpop_str=$redis_client->blpop("app.asterisk.smsreceive.list",1);
 
 	if ($blpop_sms_out || $blpop_str) {
 		$sms_info = get_sms_info();
@@ -68,6 +106,8 @@ while($running) {
 			}
 		}
 	}
+
+	unsplitSMS($messages); // add by avgreen
 
 	if (!$blpop_str) 
 	{	
@@ -116,6 +156,13 @@ while($running) {
 	}
 	/* Save to database */
 
+	// add avgreen
+	if(is_true($sms_info['telegram']['enable'])){ 
+		$telegramChatId = trim($sms_info['telegram']['chat_id']);
+		$telegramToken = trim($sms_info['telegram']['token']);
+		unsplitSMS($messages, $PORT, $PHONENUMBER, $TIME, $MESSAGE);
+	}
+	// add avgreen end
 	
 	if(is_true($sms_info['local_store']['enable'])){ 
 		$db = new SMSINBOXDB(); 

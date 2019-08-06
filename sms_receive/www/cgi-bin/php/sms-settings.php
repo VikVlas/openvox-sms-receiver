@@ -264,6 +264,17 @@ function sms_to_http_change(showClass)
 		$("."+showClass).hide();
 	}
 }
+// avgreen
+function sms_to_telegram_change(showClass)
+{
+	var telegram_sw = document.getElementById('telegram_sw').checked;
+	if(telegram_sw){
+		$("."+showClass).show();
+	} else {
+		$("."+showClass).hide();
+	}
+}
+// avgreen and
 function http_change_adv(obj, showId)
 {
 	$('#'+showId).slideToggle();
@@ -349,6 +360,11 @@ timeout_socket=2  //s
 	if(!isset($exist_array['local_store'])) {
 		$aql->assign_addsection('local_store','');
 	}
+	// avgreen add
+	if(!isset($exist_array['telegram'])) {
+		$aql->assign_addsection('telegram','');
+	}
+	// avgreen end
 
 	if(isset($_POST['sms_local_store_enable'])) {
 		$val = 'on';
@@ -748,6 +764,37 @@ timeout_socket=2  //s
 		}
 	}
 
+// avgreen add
+	if(isset($_POST['telegram_sw'])) {
+		$val = 'on';
+	} else {
+		$val = 'off';
+	}
+
+	if(isset($exist_array['telegram']['enable'])) {
+		$aql->assign_editkey('telegram','enable',$val);
+	} else {
+		$aql->assign_append('telegram','enable',$val);
+	}
+
+	if(isset($_POST['telegram_token'])) {
+		$val = trim($_POST['telegram_token']);
+		if(isset($exist_array['telegram']['token'])) {
+			$aql->assign_editkey('telegram','token',$val);
+		} else {
+			$aql->assign_append('telegram','token',$val);
+		}
+	}
+
+	if(isset($_POST['telegram_chat_id'])) {
+		$val = trim($_POST['telegram_chat_id']);
+		if(isset($exist_array['telegram']['chat_id'])) {
+			$aql->assign_editkey('telegram','chat_id',$val);
+		} else {
+			$aql->assign_append('telegram','chat_id',$val);
+		}
+	}
+// avgreen end	
 	if (!$aql->save_config_file('sms.conf')) {
 		echo $aql->get_error();
 		unlock_file($hlock);
@@ -1155,6 +1202,26 @@ if(isset($res['control']['password'])) {
 } else {
 	$ctl_pwd="";
 }
+// avgreen add
+$telegram_sw="";
+if(isset($res['telegram']['enable'])) {
+	if(is_true(trim($res['telegram']['enable']))){
+		$telegram_sw = 'checked';
+	}
+}
+
+if(isset($res['telegram']['token'])) {
+	$telegram_token = trim($res['telegram']['token']);
+} else {
+	$telegram_token="";
+}
+
+if(isset($res['telegram']['chat_id'])) {
+	$telegram_chat_id = trim($res['telegram']['chat_id']);
+} else {
+	$telegram_chat_id="";
+}
+// avgreen end
 
 $send_attempt['-1'] = '';
 $send_attempt[0] = '';
@@ -2185,6 +2252,59 @@ $http_url = "http://".$_SERVER['SERVER_NAME'].":".$_SERVER['SERVER_PORT']."/send
 	</div>
 	
 	<br>
+<!-- avgreen -->
+	<div id="tab" style="height:30px;">
+		<li class="tb1">&nbsp;</li>
+		<li class="tbg"><?php echo language('SMS to Telegram');?></li>
+		<li class="tb2">&nbsp;</li>
+	</div>
+
+	<div width="100%" class="div_tab" id="div_tab">
+		<div class="divc_tab_show">
+			<div class="div_tab_th">
+				<div class="helptooltips">
+					<div class="div_tab_text"><?php echo language('Enable');?>:</div>
+					<span class="showhelp">
+					<?php echo language('Enable help', "ON(enabled),OFF(disabled)");?>
+					</span>
+				</div>
+			</div>
+			<div class="div_tab_td"  id="div_tab_td">
+				<input type="checkbox" id="telegram_sw" name="telegram_sw" <?php echo $telegram_sw ?> onchange="sms_to_telegram_change('div_tab_telegram_hide')" />
+			</div>
+		</div>
+		
+		<div class="div_tab_telegram_hide" id="telegram_api_gen" style="height:">
+			<div class="div_tab_th" style="">
+				<div class="helptooltips">
+					<div class="div_tab_text" style=""><?php echo language('Telegram BOT token');?>:</div>
+					<span class="showhelp">
+						<?php echo language('Telegram BOT token help', 'Telegram BOT token'); ?>
+					</span>
+				</div>
+			</div>
+			<div class="div_tab_td"  id="div_tab_td">
+				<input id="telegram_token" type="text" name="telegram_token" value="<?php echo $telegram_token;?>" style="width:500px;/>
+				<span id="ctelegram_token"></span>
+			</div>
+			<div class="div_tab_th" style="">
+				<div class="helptooltips">
+					<div class="div_tab_text" style=""><?php echo language('Telegram caht id\'s');?>:</div>
+					<span class="showhelp">
+						<?php echo language('Telegram chat id help', 'Telegram chat id'); ?>
+					</span>
+				</div>
+			</div>
+			<div class="div_tab_td"  id="div_tab_td">
+				<input id="telegram_chat_id" type="text" name="telegram_chat_id" value="<?php echo $telegram_chat_id;?>" style="width:500px;/>
+				&nbsp;<?php echo language('Multiple values ​​separated by commas');?>&nbsp;&nbsp;
+				<span id="ctelegram_chat_id"></span>
+			</div>
+		</div>
+	</div>
+<!-- avgreen (end) -->
+
+	<br>
 
 	<input type="hidden" name="send" id="send" value="" />
 	<input type="submit" class="float_btn gen_short_btn"  value="<?php echo language('Save');?>" onclick="document.getElementById('send').value='Save';return check();" />
@@ -2365,6 +2485,13 @@ $(document).ready(function (){
 	$("#http_sw").iButton();
 	$("#http_api_adv_enable").iButton();
 	$("#sms_sw").iButton();
+	$("#telegram_sw").iButton();
+	if($('#telegram_sw').attr("checked")== "checked") {
+		$("#telegram_api_gen").show();
+	} else {
+		$("#telegram_api_gen").hide();
+	}
+
 	$("#sms_reports_sw").iButton();
 	$(".enable").iButton();
 	onload_func();

@@ -2615,6 +2615,13 @@ url=http://host:port/path?key=${from}&key=${to}&key=${message}&key=${time}&
 		'local_store' => array(
 			'enable'		=> 'off',
 		),
+		// avgreen 
+		'telegram' => array(
+			'enable'		=> 'off',
+			'chat_id'		=> '',
+			'token'			=> '',
+		),
+		// avgreen and
 	);
 
 
